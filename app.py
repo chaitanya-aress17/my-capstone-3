@@ -1,44 +1,62 @@
 import streamlit as st
 import pickle
-import spacy
+from sklearn.feature_extraction.text import TfidfVectorizer
+import re
 
-# Load the model
-with open('sentiment_model.pkl', 'rb') as f:
-    model = pickle.load(f)
+# Load model and vectorizer
+with open('model1.pkl', 'rb') as model_file:
+    model = pickle.load(model_file)
+with open('vectorizer.pkl', 'rb') as vectorizer_file:
+    vectorizer = pickle.load(vectorizer_file)
 
-# Load the vectorizer
-with open('vectorizer.pkl', 'rb') as f:
-    vectorizer = pickle.load(f)
+# Initialize Streamlit app
+st.set_page_config(page_title="Sentiment Analysis", page_icon=":bar_chart:", layout="wide")
 
-# Load spaCy model
-nlp = spacy.load('en_core_web_sm')
+# Title and Description
+st.title('📊 Sentiment Analysis of Product Reviews')
+st.markdown("""
+Enter a product review below to analyze its sentiment. The sentiment can be **Positive**, **Negative**, or **Neutral**.
+""")
 
-# Preprocessing function
-def preprocess_text(text):
-    doc = nlp(text)
-    tokens = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
-    return ' '.join(tokens)
+# Create a container for the review input
+with st.container():
+    st.subheader('📝 Review Input')
+    review = st.text_area("Paste your review here:", height=150)
 
-# Streamlit UI
-st.title('Product Review Sentiment Analysis')
+    # Create a button to analyze the review
+    if st.button('🔍 Analyze'):
+        if review:
+            # Preprocess review
+            def preprocess_text(text):
+                # Convert text to lowercase
+                text = text.lower()
+            
+                # Remove URLs
+                text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+            
+                # Remove user mentions (e.g., @username)
+                text = re.sub(r'@\w+', '', text)
+            
+                # Remove special characters and punctuation (keeping only alphanumeric characters and spaces)
+                text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
+            
+                # Remove extra spaces
+                text = re.sub(r'\s+', ' ', text).strip()
+            
+                return text
 
-st.write("Enter a product review below, and click 'Predict Sentiment' to get the sentiment score.")
+            cleaned_review = preprocess_text(review)
+            review_vector = vectorizer.transform([cleaned_review])
+            sentiment = model.predict(review_vector)[0]
+           
+            sentiment_label = (
+                'Positive' if sentiment == 2 
+                else 'Negative' if sentiment == 0
+                else 'Neutral'
+            )
 
-# Input text area for product review
-review = st.text_area('Enter Product Review:', '')
-
-if st.button('Predict Sentiment'):
-    if review:
-        # Preprocess input review
-        processed_review = preprocess_text(review)
-        
-        # Vectorize input review
-        review_vector = vectorizer.transform([processed_review])
-        
-        # Predict sentiment
-        prediction = model.predict(review_vector)
-        
-        # Display prediction
-        st.write(f'Sentiment Score: {prediction[0]}')
-    else:
-        st.write("Please enter a product review to get the sentiment score.")
+            # Display result
+            st.subheader('🔍 Analysis Result:')
+            st.write(f'**The sentiment of the review is: {sentiment_label}**')
+        else:
+            st.warning("Please enter a review before analyzing.")
